@@ -34,7 +34,7 @@ bcdedit /store BCD_modded /set {default} path \WINDOWS\system32\winload_DOESNOTE
 bcdedit /store BCD_modded /enum all
 ```
 
-In the output, find the entry whose description is **"Windows Recovery"** and which contains `ramdisksdidevice` / `ramdisksdipath` entries. Note its GUID, then:
+In the output, find the device options entry whose description is **"Windows Recovery"** and which contains `ramdisksdidevice` / `ramdisksdipath` entries. Note its GUID, then:
 
 ```bat
 bcdedit /store BCD_modded /set {GUID} ramdisksdidevice boot
