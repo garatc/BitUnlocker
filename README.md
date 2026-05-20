@@ -50,7 +50,7 @@ Place the resulting `BCD` file in the appropriate location depending on your met
 
 #### Option A: USB boot (recommended)
 
-Format a USB stick as **FAT32** and copy the contents of the `USB/` directory to its root. The USB stick should look like this:
+Format a USB stick as **FAT32** and copy the contents of the `USB/` directory to its root (only its content, there should not be a "USB" folder). The USB stick should look like this:
 
 ```
 USB stick root/
