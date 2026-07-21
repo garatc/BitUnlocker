@@ -4,7 +4,7 @@
 
 A proof of concept for accessing BitLocker-encrypted disks **in under 5 minutes** on fully patched Windows 11 machines through a boot manager downgrade attack, leveraging the SDI vulnerability originally documented as **CVE-2025-48804**. The July 2025 patch fixes this in `bootmgfw.efi`, so any pre-patch `bootmgfw.efi` signed under PCA 2011 can be used for a downgrade attack, provided the target system trusts this PCA.
 
-This PoC provides two delivery methods: **USB boot** (simpler and recommended) and **PXE boot**. Other approaches relying only on local partitions would probably be possible as well with a smaller SDI file.
+This PoC provides two delivery methods: **USB boot** (simpler and recommended) and **PXE boot**. But theoretically, you could also just copy an SDI boot file into one of the default unencrypted partitions (ESP & Recovery) and not bother with USB or PXE - see "Edge cases" table.
 
 This work builds entirely on the research by **Microsoft STORM** (Netanel Ben Simon and Alon Leviev):
 > [BitUnlocker: Leveraging Windows Recovery to Extract BitLocker Secrets](https://techcommunity.microsoft.com/blog/microsoft-security-blog/bitunlocker-leveraging-windows-recovery-to-extract-bitlocker-secrets/4442806)
@@ -116,10 +116,11 @@ Once the transfer completes, a command prompt should appear with the OS volume d
 
 | Situation | What happens |
 |---|---|
-| BitLocker configured with a **PIN** you know | Blue screen at boot — type the PIN blindly and press Enter |
+| BitLocker configured with a **PIN** you know | Blue screen at boot — type the PIN blindly (sorry I haven't bothered with BitLocker fonts in this repo) and press Enter |
 | Blue screen, no PIN | Target has likely migrated to CA 2023 — press Escape and let the SDI transfer finish anyway, but the BitLocker-encrypted drive will most likely be locked at the end |
 | USB-C / Thunderbolt only | Use a USB-C drive or USB-Ethernet adapter (for PXE) |
 | TFTP file not found (other than garbage Font files which we don't care about) | File names are case-sensitive — rename `bootmgfw.efi` to match what the target requests |
+| No PXE or USB boot allowed | Check available size of ESP & Recovery partitions (`diskpart` -> `list vol`). If there's enough room for the provided Boot.sdi file (which is around 300Mb) in either partition, put it there. Then, the exploit will be slightly different (but still just as quick) as you will need to directly modify the BCD file of the target system (please make a backup) to point to the unencrypted host partition (`ramdisksdidevice` BCD entry in particular), and replace the bootmgfw.efi of your target with the one provided in the TFTP folder of this repo. In this case, make sure to check that the boot manager of your target is signed by PCA 2011 (exploit wouldn't work in that case anyway, always check that), otherwise you'll put the system into BitLocker recovery. Also, if there is not enough room for the Boot.sdi file I provided in this repo, you could try to make your own smaller version, there are definitely some ways to do that (see "Build your own SDI file" section below) |
 
 ---
 
