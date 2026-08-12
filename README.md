@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A proof of concept for accessing BitLocker-encrypted disks **in under 5 minutes** on fully patched Windows 11 machines through a boot manager downgrade attack, leveraging the SDI vulnerability originally documented as **CVE-2025-48804**. The July 2025 patch fixes this in `bootmgfw.efi`, so any pre-patch `bootmgfw.efi` signed under PCA 2011 can be used for a downgrade attack, provided the target system trusts this PCA.
+A proof of concept for accessing BitLocker-encrypted disks **in under 5 minutes** on fully patched Windows 11 machines through a boot manager downgrade attack, leveraging the SDI vulnerability originally documented as **CVE-2025-48804**. The July 2025 patch fixes this in `bootmgfw.efi`, so any pre-patch `bootmgfw.efi` can be used for a downgrade attack, provided the target does not enforce a boot-manager version (SVN) (which comes with KB5025885).
 
 This PoC provides two delivery methods: **USB boot** (simpler and recommended) and **PXE boot**. But theoretically, you could also just copy an SDI boot file into one of the default unencrypted partitions (ESP & Recovery) and not bother with USB or PXE - see "Edge cases" table.
 
@@ -14,7 +14,7 @@ This work builds entirely on the research by **Microsoft STORM** (Netanel Ben Si
 ## Prerequisites
 
 - Physical access to a BitLocker-encrypted device (TPM-only, PCR 7 + 11)
-- The device's Secure Boot database still trusts the **Microsoft Windows PCA 2011** certificate
+- The device does not enforce SVN
 - A USB stick (recommended) **or** a Linux machine with `dnsmasq` and an Ethernet cable for PXE
 
 ## Step-by-step
@@ -46,7 +46,14 @@ Place the resulting `BCD` file in the appropriate location depending on your met
 - **USB:** `USB/EFI/Microsoft/Boot/BCD`
 - **PXE:** `TFTP-root/Boot/BCD`
 
-### 3. Boot the target
+### 3. Check target boot manager signature
+
+This will be important for the next steps, so take note whether it is signed by PCA 2011 or CA 2023: we want to use a downgrade boot manager that is signed by the same CA as the target's boot manager to avoid PCR 7 mismatch and actually unlock the BitLocker-encrypted drive.
+
+Machines freshly installed since early 2026 likely ship with a CA 2023-signed `bootmgfw.efi` by default. To check which CA is used, mount the EFI partition and inspect the active binary: `mountvol S: /s` then `sigcheck -i S:\EFI\Microsoft\Boot\bootmgfw.efi`. Note that `C:\Windows\Boot\EFI\bootmgfw.efi` may differ from the file actually used at boot - always check the EFI partition copy.
+If you see "Windows UEFI CA 2023", then the boot manager is signed by CA 2023. If you see "Microsoft Windows Production PCA 2011", the boot manager is signed by PCA 2011.
+
+### 4. Boot the target
 
 #### Option A: USB boot (recommended)
 
@@ -57,6 +64,7 @@ USB stick root/
 ├── EFI/
 │   ├── Boot/
 │   │   └── bootx64.efi        # Pre-patch boot manager (PCA 2011)
+│   │   └── bootx64_CA2023.efi # Pre-patch boot manager (CA 2023)
 │   └── Microsoft/
 │       └── Boot/
 │           └── BCD             # Your modified BCD
@@ -64,7 +72,7 @@ USB stick root/
     └── boot_patched.sdi        # Patched SDI with custom WinRE
 ```
 
-Plug the USB stick into the target and trigger a UEFI USB boot — either from WinRE (**Use a device**) or by pressing the manufacturer's boot menu key at power-on (F12, F9, etc.). If the USB stick doesn't appear in the list of boot options, look for a **"Boot from file"** option in the UEFI boot menu, then navigate to `EFI/Boot/bootx64.efi` on the USB stick.
+Plug the USB stick into the target and trigger a UEFI USB boot — either from WinRE (**Use a device**) or by pressing the manufacturer's boot menu key at power-on (F12, F9, etc.). If the USB stick doesn't appear in the list of boot options, look for a **"Boot from file"** option in the UEFI boot menu, then navigate to `EFI/Boot/bootx64.efi` on the USB stick if your target has a 2011-signed boot manager, otherwise use `EFI/Boot/bootx64_CA2023.efi`.
 
 #### Option B: PXE boot
 
@@ -73,17 +81,21 @@ The `TFTP-root/` directory is structured as follows:
 ```
 TFTP-root/
 ├── bootmgfw.efi                # Pre-patch boot manager (PCA 2011)
+├── bootmgfw_CA2023.efi         # Pre-patch boot manager (CA 2023)
 ├── Boot/
 │   └── BCD                     # Your modified BCD
 ├── EFI/
 │   └── Microsoft/
 │       └── Boot/
-│           └── bootmgfw.efi    # Same pre-patch boot manager
+│           └── bootmgfw.efi           # Same pre-patch boot manager (PCA 2011)
+│           └── bootmgfw_CA2023.efi    # Same pre-patch boot manager (CA 2023)
 └── sdi/
     └── boot_patched.sdi        # Patched SDI with custom WinRE
 ```
 
-Connect the target to your Linux machine via Ethernet and start the PXE server:
+If your target's boot manager is signed by CA 2023, you want to rename `TFTP-root/bootmgfw_CA2023.efi` and `TFTP-root/EFI/Microsoft/Boot/bootmgfw_CA2023.efi` to `TFTP-root/bootmgfw.efi` and `TFTP-root/EFI/Microsoft/Boot/bootmgfw.efi` respectively.
+
+Then, connect the target to your Linux machine via Ethernet and start the PXE server:
 
 ```bash
 cd BitUnlocker
@@ -104,11 +116,11 @@ sudo dnsmasq --no-daemon \
 
 Trigger PXE boot on the target — from WinRE select **Use a device > IPv4 Network**, or press the manufacturer's PXE boot key.
 
-### 4. Wait for the SDI transfer
+### 5. Wait for the SDI transfer
 
 The boot manager will load the BCD, then start downloading `boot_patched.sdi`. The SDI file is large (~300 MB) so this takes a moment from USB, or **several minutes** over TFTP. A recovery-related message with the SDI path should appear on the target screen while it loads.
 
-### 5. Profit
+### 6. Profit
 
 Once the transfer completes, a command prompt should appear with the OS volume decrypted and mounted (typically `C:` or `E:`). If it wasn't mounted automatically or you don't want to guess the letter, just run `diskpart` -> `sel vol X` (the one that looks like your encrypted drive) -> `assign letter=C` (or something else) -> `exit` -> profit
 
@@ -117,10 +129,10 @@ Once the transfer completes, a command prompt should appear with the OS volume d
 | Situation | What happens |
 |---|---|
 | BitLocker configured with a **PIN** you know | Blue screen at boot — type the PIN blindly (sorry I haven't bothered with BitLocker fonts in this repo) and press Enter |
-| Blue screen, no PIN | Target has likely migrated to CA 2023 — press Escape and let the SDI transfer finish anyway, but the BitLocker-encrypted drive will most likely be locked at the end |
+| Blue screen, no PIN | Double check that you are using the correct boot manager: if the target's boot manager is signed by PCA 2011, use the 2011-signed boot manager provided in this repo. Otherwise, use the one signed by CA 2023. |
 | USB-C / Thunderbolt only | Use a USB-C drive or USB-Ethernet adapter (for PXE) |
 | TFTP file not found (other than garbage Font files which we don't care about) | File names are case-sensitive — rename `bootmgfw.efi` to match what the target requests |
-| No PXE or USB boot allowed | Check available size of ESP & Recovery partitions (`diskpart` -> `list vol`). If there's enough room for the provided Boot.sdi file (which is around 300Mb) in either partition, put it there. Then, the exploit will be slightly different (but still just as quick) as you will need to directly modify the BCD file of the target system (please make a backup) to point to the unencrypted host partition (`ramdisksdidevice` BCD entry in particular), and replace the bootmgfw.efi of your target with the one provided in the TFTP folder of this repo. In this case, make sure to check that the boot manager of your target is signed by PCA 2011 (exploit wouldn't work in that case anyway, always check that), otherwise you'll put the system into BitLocker recovery. Also, if there is not enough room for the Boot.sdi file I provided in this repo, you could try to make your own smaller version, there are definitely some ways to do that (see "Build your own SDI file" section below) |
+| No PXE or USB boot allowed | Check available size of ESP & Recovery partitions (`diskpart` -> `list vol`). If there's enough room for the provided Boot.sdi file (which is around 300Mb) in either partition, put it there. Then, the exploit will be slightly different (but still just as quick) as you will need to directly modify the BCD file of the target system (please make a backup) to point to the unencrypted host partition (`ramdisksdidevice` BCD entry in particular), and replace the bootmgfw.efi of your target with the one provided in the TFTP folder of this repo. /!\ In this case, always check the signature of the target's boot manager as indicated in step 3. If you replace the boot manager of your target with one that isn't signed by the same CA, you'll have a BitLocker recovery prompt. Also, if there is not enough room for the Boot.sdi file I provided in this repo, you could try to make your own smaller version, there are definitely some ways to do that (see "Build your own SDI file" section below) |
 
 ---
 
@@ -135,16 +147,15 @@ The `boot_patched.sdi` file provided in Releases contains a modified WinRE.wim w
 ## Unexploitable cases
 
 - **TPM + PIN or TPM + key file** is configured and the attacker doesn't know it
-- **KB5025885 is installed / the boot manager has been migrated to CA 2023** — machines freshly installed since early 2026 likely ship with a CA 2023-signed `bootmgfw.efi` by default. To check, mount the EFI partition and inspect the active binary: `mountvol S: /s` then `sigcheck -i S:\EFI\Microsoft\Boot\bootmgfw.efi`. Note that `C:\Windows\Boot\EFI\bootmgfw.efi` may differ from the file actually used at boot — always check the EFI partition copy.
+- **KB5025885 is installed**
 - **Non-default PCR policy** — configurations involving PCR 0, 2, or 4 will detect the change in boot path
-- **PCA 2011 revoked via DBX** — if the old certificate has been explicitly distrusted
 
 ---
 
 ## Mitigations
 
 - **Enable TPM + PIN** — a pre-boot PIN prevents the TPM from unsealing the VMK without user interaction, regardless of boot path manipulation. Keep in mind however that it wouldn't stop an insider who has knowledge of the PIN.
-- **Migrate to Windows UEFI CA 2023 and apply [KB5025885](https://support.microsoft.com/en-us/topic/kb5025885-how-to-manage-the-windows-boot-manager-revocations-for-secure-boot-changes-associated-with-cve-2023-24932-41a975df-beb2-40c1-99a3-b3ff139f832d) to prevent downgrade attacks altogether**
+- **Apply [KB5025885](https://support.microsoft.com/en-us/topic/kb5025885-how-to-manage-the-windows-boot-manager-revocations-for-secure-boot-changes-associated-with-cve-2023-24932-41a975df-beb2-40c1-99a3-b3ff139f832d) to prevent downgrade attacks altogether**
 
 ---
 
