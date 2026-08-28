@@ -72,7 +72,7 @@ USB stick root/
     └── boot_patched.sdi        # Patched SDI with custom WinRE
 ```
 
-Plug the USB stick into the target and trigger a UEFI USB boot — either from WinRE (**Use a device**) or by pressing the manufacturer's boot menu key at power-on (F12, F9, etc.). If the USB stick doesn't appear in the list of boot options, look for a **"Boot from file"** option in the UEFI boot menu, then navigate to `EFI/Boot/bootx64.efi` on the USB stick if your target has a 2011-signed boot manager, otherwise use `EFI/Boot/bootx64_CA2023.efi`.
+Plug the USB stick into the target and trigger a UEFI USB boot — either from WinRE (**Use a device**) or by pressing the manufacturer's boot menu key at power-on (F12, F9, etc.). If the USB stick doesn't appear in the list of boot options, look for a **"Boot from file"** option in the UEFI boot menu, then navigate to `EFI/Boot/bootx64.efi` on the USB stick if your target has a 2011-signed boot manager, otherwise use `EFI/Boot/bootx64_CA2023.efi`. If you chose to boot automatically (so, not through the "Boot from file" option) and the boot manager is signed by CA2023, make sure you rename `bootx64_CA2023.efi` to `bootx64.efi`.
 
 #### Option B: PXE boot
 
