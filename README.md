@@ -128,7 +128,7 @@ Once the transfer completes, a command prompt should appear with the OS volume d
 
 | Situation | What happens |
 |---|---|
-| BitLocker configured with a **PIN** you know | Blue screen at boot — type the PIN blindly (sorry I haven't bothered with BitLocker fonts in this repo) and press Enter |
+| BitLocker configured with a **PIN** you know | Type the PIN as usual and press Enter |
 | Blue screen, no PIN | Double check that you are using the correct boot manager: if the target's boot manager is signed by PCA 2011, use the 2011-signed boot manager provided in this repo. Otherwise, use the one signed by CA 2023. |
 | USB-C / Thunderbolt only | Use a USB-C drive or USB-Ethernet adapter (for PXE) |
 | TFTP file not found (other than garbage Font files which we don't care about) | File names are case-sensitive — rename `bootmgfw.efi` to match what the target requests |
