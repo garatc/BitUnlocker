@@ -13,7 +13,7 @@ This work builds entirely on the research by **Microsoft STORM** (Netanel Ben Si
 
 ## Prerequisites
 
-- Physical access to a BitLocker-encrypted device (TPM-only, PCR 7 + 11)
+- Physical access to a BitLocker-encrypted device (TPM-only - or TPM+PIN with a PIN you know, PCR 7 + 11)
 - The device does not enforce SVN
 - A USB stick (recommended) **or** a Linux machine with `dnsmasq` and an Ethernet cable for PXE
 
