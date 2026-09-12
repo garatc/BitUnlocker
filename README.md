@@ -50,7 +50,7 @@ Place the resulting `BCD` file in the appropriate location depending on your met
 
 This will be important for the next steps, so take note whether it is signed by PCA 2011 or CA 2023: we want to use a downgrade boot manager that is signed by the same CA as the target's boot manager to avoid PCR 7 mismatch and actually unlock the BitLocker-encrypted drive.
 
-Machines freshly installed since early 2026 likely ship with a CA 2023-signed `bootmgfw.efi` by default. To check which CA is used, mount the EFI partition and inspect the active binary: `mountvol S: /s` then `sigcheck -i S:\EFI\Microsoft\Boot\bootmgfw.efi`. Note that `C:\Windows\Boot\EFI\bootmgfw.efi` may differ from the file actually used at boot - always check the EFI partition copy.
+Machines freshly installed since early 2026 likely ship with a CA 2023-signed `bootmgfw.efi` by default. To check which CA is used, mount the EFI partition and inspect the active binary: `mountvol S: /s` then `sigcheck -i S:\EFI\Microsoft\Boot\bootmgfw.efi` (sigcheck is a free Sysinternals tool). Note that `C:\Windows\Boot\EFI\bootmgfw.efi` may differ from the file actually used at boot - always check the EFI partition copy.
 If you see "Windows UEFI CA 2023", then the boot manager is signed by CA 2023. If you see "Microsoft Windows Production PCA 2011", the boot manager is signed by PCA 2011.
 
 ### 4. Boot the target
