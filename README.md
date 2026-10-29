@@ -4,7 +4,7 @@
 
 A proof of concept for accessing BitLocker-encrypted disks **in under 5 minutes** on fully patched Windows 11 machines through a boot manager downgrade attack, leveraging the SDI vulnerability originally documented as **CVE-2025-48804**. The July 2025 patch fixes this in `bootmgfw.efi`, so any pre-patch `bootmgfw.efi` can be used for a downgrade attack, provided the target does not enforce a boot-manager version (SVN) (which comes with KB5025885).
 
-This PoC provides two delivery methods: **USB boot** (simpler and recommended) and **PXE boot**. But theoretically, you could also just copy an SDI boot file into one of the default unencrypted partitions (ESP & Recovery) and not bother with USB or PXE - see "Edge cases" table.
+This PoC provides two delivery methods: **USB boot** (simpler and recommended) and **PXE boot** and hints at a riskier method you could use when neither PXE nor USB is allowed.
 
 This work builds entirely on the research by **Microsoft STORM** (Netanel Ben Simon and Alon Leviev):
 > [BitUnlocker: Leveraging Windows Recovery to Extract BitLocker Secrets](https://techcommunity.microsoft.com/blog/microsoft-security-blog/bitunlocker-leveraging-windows-recovery-to-extract-bitlocker-secrets/4442806)
@@ -15,7 +15,6 @@ This work builds entirely on the research by **Microsoft STORM** (Netanel Ben Si
 
 - Physical access to a BitLocker-encrypted device (TPM-only - or TPM+PIN with a PIN you know, PCR 7 + 11)
 - The device does not enforce SVN
-- A USB stick (recommended) **or** a Linux machine with `dnsmasq` and an Ethernet cable for PXE
 
 ## Step-by-step
 
@@ -23,7 +22,7 @@ This work builds entirely on the research by **Microsoft STORM** (Netanel Ben Si
 
 Put it in `USB/sdi/` (for USB method) or `TFTP-root/sdi/` (for PXE method).
 
-### 2. Prepare the modified BCD
+### 2. Prepare the modified BCD (skip if neither USB nor PXE is available on your target)
 
 On the target device, open a WinRE command prompt (hold **Shift** while clicking **Restart**, then **Troubleshoot > Command Prompt** — click "Ignore this disk" when prompted for a BitLocker recovery key and click "relaunch" if you're also told that the cmd prompt cannot run on a locked device — and if the cmd prompt just won't open, use your own WinPE if you can). Plug in a USB stick and run:
 
@@ -116,13 +115,19 @@ sudo dnsmasq --no-daemon \
 
 Trigger PXE boot on the target — from WinRE select **Use a device > IPv4 Network**, or press the manufacturer's PXE boot key.
 
+#### Option C: no USB or PXE boot allowed
+
+Another option is to just stage the SDI file inside the ESP or Recovery partition, since write access is provided to those from WinRE. The only limiting factor is free space, as those partitions are generally quite tight. But with the SDI file being smaller in the recent Release (~115Mb), it will likely fit. Note that you will directly be modifying the boot manager as well as the BCD of your target, so it is a bit more involved. Replacing the boot manager with a version that's not signed by the same PCA will cause PCR mismatch and therefore a BitLocker blue screen, and you will also tamper with WinRE itself, making it unable to load (and help you debug) if you mess up.
+
+I will not give any more details, do it only if PXE and USB aren't available and if you know what you are doing. Do it at your own risk, I will not be responsible if you can't boot your PC anymore.
+
 ### 5. Wait for the SDI transfer
 
 The boot manager will load the BCD, then start downloading `boot_patched.sdi`. The SDI file is large (~300 MB) so this takes a moment from USB, or **several minutes** over TFTP. A recovery-related message with the SDI path should appear on the target screen while it loads.
 
 ### 6. Profit
 
-Once the transfer completes, a command prompt should appear with the OS volume decrypted and mounted (typically `C:` or `E:`). If it wasn't mounted automatically or you don't want to guess the letter, just run `diskpart` -> `sel vol X` (the one that looks like your encrypted drive) -> `assign letter=C` (or something else) -> `exit` -> profit
+Once the transfer completes, a command prompt should appear with the OS volume decrypted and mounted (typically `C:` or `E:`). If it wasn't mounted automatically or you don't want to guess the letter, just run `diskpart` -> `sel vol X` (the one that looks like your encrypted drive) -> `assign letter=C` (or something else) -> (wait for a bit) -> `exit` -> profit
 
 ### Edge cases
 
@@ -132,7 +137,7 @@ Once the transfer completes, a command prompt should appear with the OS volume d
 | Blue screen, no PIN | Double check that you are using the correct boot manager: if the target's boot manager is signed by PCA 2011, use the 2011-signed boot manager provided in this repo. Otherwise, use the one signed by CA 2023. |
 | USB-C / Thunderbolt only | Use a USB-C drive or USB-Ethernet adapter (for PXE) |
 | TFTP file not found (other than garbage Font files which we don't care about) | File names are case-sensitive — rename `bootmgfw.efi` to match what the target requests |
-| No PXE or USB boot allowed | Check available size of ESP & Recovery partitions (use `diskpart` and `fsutil`). If there's enough room for the provided Boot.sdi file (which is around 300Mb) in either partition, put it there. Then, the exploit will be slightly different (but still just as quick) as you will need to directly modify the BCD file of the target system (please make a backup) to point to the unencrypted host partition (`ramdisksdidevice` BCD entry in particular), and replace the bootmgfw.efi of your target with the one provided in the TFTP folder of this repo. /!\ In this case, always check the signature of the target's boot manager as indicated in step 3. If you replace the boot manager of your target with one that isn't signed by the same CA, you'll have a BitLocker recovery prompt. Also, if there is not enough room for the Boot.sdi file I provided in this repo, you could try to make your own smaller version, there are definitely some ways to do that (see "Build your own SDI file" section below) |
+| No PXE or USB boot allowed | Stage the SDI file locally to either the Recovery or ESP partition. More involved, do it at your own risk |
 
 ---
 
