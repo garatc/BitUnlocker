@@ -14,7 +14,7 @@ This work builds entirely on the research by **Microsoft STORM** (Netanel Ben Si
 ## Prerequisites
 
 - Physical access to a BitLocker-encrypted device (TPM-only - or TPM+PIN with a PIN you know, PCR 7 + 11)
-- The device does not enforce SVN
+- The device has not manually applied KB5025885 ("REVISE" mitigation), which enables SVN and revokes PCA 2011
 
 ## Step-by-step
 
